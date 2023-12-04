@@ -1,0 +1,166 @@
+---
+import Layout from "../layouts/Layout.astro"; // src/utils/queryStardog.js
+import Area from "../components/Area.astro";
+---
+
+<script>
+	import * as d3 from "d3";
+
+	import { Connection, query } from "stardog";
+
+	const conn = new Connection({
+		username: "stardogUser",
+		password: "stardogPassword",
+		endpoint: "https://sd-ece86e0d.stardog.cloud:5820",
+	});
+
+	const dbName = "CrimeDatabase";
+
+	document
+		.getElementById("city")
+		.addEventListener("submit", function (event) {
+			const svg = d3.select("#mySVG");
+			svg.selectAll("*").remove();
+			event.preventDefault();
+
+			const selectedOption = document.querySelector(
+				'input[name="city"]:checked',
+			);
+
+			const numberSlider = document.getElementById('numberSlider');
+			var month = numberSlider.value;
+
+			if (selectedOption) {
+				getAreaData(selectedOption.value + "", month);
+				console.log("Selected Option:", selectedOption.value);
+			} else {
+				console.log("Please select an option.");
+			}
+		});
+
+	function getAreaData(city, month) {
+		query
+			.execute(
+				conn,
+				dbName,
+				'PREFIX crime: <http://www.semanticweb.org/nithi/ontologies/2023/10/ser531_CrimeDataInsights/> SELECT ?Area (COUNT(?Crime) AS ?NumberOfCrimes) FROM <crimedata:ontology:graph> WHERE { ?Crime crime:has_Location ?Location . ?Location crime:has_Area_Value ?Area . ?Crime crime:has_Timestamp ?Timestamp . ?Timestamp crime:has_Date ?Date . ?Date crime:has_Month ' + month + ' . ?Location crime:has_City ?City . ?City crime:has_City_Name "' +
+					city +
+					'" . } GROUP BY ?Area ORDER BY DESC(?Area)',
+				"application/sparql-results+json",
+				{
+					limit: 60,
+					reasoning: true,
+					offset: 0,
+				},
+			)
+			.then(({ body }) => {
+				console.log(body.results.bindings);
+				var data = body.results.bindings;
+				const width = 1200;
+				const height = 300;
+				const marginLeft = 20;
+
+				const svg = d3.select("#mySVG");
+
+				const xScale = d3
+					.scaleBand()
+					.domain(data.map((d) => d.Area.value))
+					.range([marginLeft, width])
+					.padding(0.1);
+
+				const yScale = d3
+					.scaleLinear()
+					.domain([
+						0,
+						d3.max(data, (d) => parseInt(d.NumberOfCrimes.value)),
+					])
+					.range([height, 0]);
+
+				svg.selectAll("rect")
+					.data(data)
+					.enter()
+					.append("rect")
+					.attr("x", (d) => xScale(d.Area.value))
+					.attr("y", (d) => yScale(parseInt(d.NumberOfCrimes.value)))
+					.attr("width", xScale.bandwidth())
+					.attr(
+						"height",
+						(d) =>
+							height - yScale(parseInt(d.NumberOfCrimes.value)),
+					)
+					.attr("fill", "#f40076");
+
+				svg.append("g")
+					.attr("transform", `translate(0, ${height})`)
+					.call(d3.axisBottom(xScale))
+					.selectAll("text") // Select all the text elements of the x-axis
+					.attr("transform", "rotate(-45)") // Rotate the text elements by -45 degrees
+					.style("text-anchor", "end");
+
+				svg.append("g")
+					.attr("transform", `translate(${marginLeft},0)`)
+					.call(
+						d3
+							.axisLeft(yScale)
+							.tickValues(
+								d3.range(
+									0,
+									d3.max(data, (d) =>
+										parseInt(d.NumberOfCrimes.value),
+									) + 1,
+									1,
+								),
+							),
+					);
+			})
+			.catch((error) => {
+				console.error("Error executing SPARQL query:", error);
+			});
+	}
+	const clearMap = () => {
+		const svg = d3.select("#map");
+		svg.selectAll("*").remove();
+	};
+</script>
+
+<head>
+	<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+</head>
+<Layout title="Crime Data">
+	<div class="main">
+		<form id="city">
+			City:
+			<label>
+				<input type="radio" name="city" value="Boston" />
+				 Boston
+			</label>
+
+			<label>
+				<input type="radio" name="city" value="Los Angeles" />
+				 Los Angeles
+			</label>
+
+			<label>
+				<input type="radio" name="city" value="New York" />
+				 New York
+			</label>
+			<br/>
+			<label for="numberSlider">Select a Month (1-12):</label>
+  			<input type="range" id="numberSlider" name="numberSlider" min="1" max="12" step="1" value="1">
+			<br/>
+			  <input type="submit" value="Submit" />
+		</form>
+		<br />
+		<svg width="2200" height="500" id="mySVG"></svg>
+		<!-- <div id="map" style="height: 400px; width: 400px;"></div> -->
+	</div>
+
+	<style>
+		.main {
+			padding: 4rem min(var(--main-padding, 8rem), 8vw);
+		}
+		#map {
+			height: 180px;
+		}
+	</style>
+</Layout>

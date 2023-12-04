@@ -1,0 +1,168 @@
+---
+import Layout from "../layouts/Layout.astro"; // src/utils/queryStardog.js
+import Area from "../components/Area.astro";
+---
+
+<script>
+	import * as d3 from "d3";
+
+	import { Connection, query } from "stardog";
+
+	const conn = new Connection({
+		username: "stardogUser",
+		password: "stardogPassword",
+		endpoint: "https://sd-ece86e0d.stardog.cloud:5820",
+	});
+
+	const dbName = "CrimeDatabase";
+
+	document
+		.getElementById("city")
+		.addEventListener("submit", function (event) {
+			event.preventDefault(); 
+
+			const selectedOption = document.querySelector(
+				'input[name="city"]:checked',
+			);
+
+			if (selectedOption) {
+				getAreaData(selectedOption.value + "");
+				console.log("Selected Option:", selectedOption.value);
+			} else {
+				console.log("Please select an option.");
+			}
+		});
+
+	function getAreaData(city) {
+		query
+			.execute(
+				conn,
+				dbName,
+                'PREFIX crime: <http://www.semanticweb.org/nithi/ontologies/2023/10/ser531_CrimeDataInsights/> SELECT ?gender (COUNT(?gender) AS ?NumberOfCrimes) FROM <crimedata:ontology:graph> WHERE { ?crime crime:has_Location ?location . ?crime crime:has_Victim ?victim . ?victim crime:has_Gender ?g . ?g crime:has_Gender_Value ?gender . ?location crime:has_City ?City . ?City crime:has_City_Name "Los Angeles" . } GROUP BY ?gender ORDER BY DESC(?gender)',
+                //'PREFIX crime: <http://www.semanticweb.org/nithi/ontologies/2023/10/ser531_CrimeDataInsights/> SELECT ?gender (COUNT(?gender) AS ?NumberOfCrimes) FROM <crimedata:ontology:graph> WHERE { ?crime crime:has_Location ?location . ?crime crime:has_Victim ?victim . victim crime:has_Gender ?g . ?g crime:has_Gender_Value ?gender . ?location crime:has_City ?City . ?City crime:has_City_Name "Los Angeles" .} GROUP BY ?gender ORDER BY DESC(?gender)',
+				"application/sparql-results+json",
+				{
+					limit: 60,
+					reasoning: true,
+					offset: 0,
+				},
+			)
+			.then(({ body }) => {
+				console.log(body.results.bindings);
+				var data = body.results.bindings;
+				const width = 1200;
+				const height = 300;
+				const marginLeft = 50;
+
+				const svg = d3.select("#mySVG");
+
+				const xScale = d3
+					.scaleBand()
+					.domain(data.map((d) => d.gender.value))
+					.range([marginLeft, width])
+					.padding(0.1);
+
+				const yScale = d3
+					.scaleLinear()
+					.domain([
+						0,
+						d3.max(data, (d) => parseInt(d.NumberOfCrimes.value)),
+					])
+					.range([height, 0]);
+
+				svg.selectAll("rect")
+					.data(data)
+					.enter()
+					.append("rect")
+					.attr("x", (d) => xScale(d.gender.value))
+					.attr("y", (d) => yScale(parseInt(d.NumberOfCrimes.value)))
+					.attr("width", xScale.bandwidth())
+					.attr(
+						"height",
+						(d) =>
+							height - yScale(parseInt(d.NumberOfCrimes.value)),
+					)
+					.attr("fill", "#f40076");
+
+				svg.append("g")
+					.attr("transform", `translate(0, ${height})`)
+					.call(d3.axisBottom(xScale))
+					.selectAll("text") // Select all the text elements of the x-axis
+					.attr("transform", "rotate(-45)") // Rotate the text elements by -45 degrees
+					.style("text-anchor", "end");
+
+				svg.append("g")
+					.attr("transform", `translate(${marginLeft},0)`)
+					.call(
+						d3
+							.axisLeft(yScale)
+							.tickValues(
+								d3.range(
+									0,
+									d3.max(data, (d) =>
+										parseInt(d.NumberOfCrimes.value),
+									) + 1,
+									100,
+								),
+							),
+					);
+			})
+			.catch((error) => {
+				console.error("Error executing SPARQL query:", error);
+			});
+	}
+
+	import L from "leaflet";
+
+	function initMap() {
+		const map = L.map("map").setView([40.7128, -74.006], 12);
+
+		L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+			attribution: "© OpenStreetMap contributors",
+		}).addTo(map);
+
+		// Add a marker for demonstration purposes
+		L.marker([40.7128, -74.006]).addTo(map);
+	}
+
+	// Initialize the map when the component is mounted
+	initMap();
+</script>
+
+<head>
+	<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+</head>
+<Layout title="Crime Data">
+	<div class="main">
+		<form id="city">
+			City:
+			<label>
+				<input type="radio" name="city" value="Boston" />
+				 Boston
+			</label>
+
+			<label>
+				<input type="radio" name="city" value="Los Angeles" />
+				 Los Angeles
+			</label>
+
+			<label>
+				<input type="radio" name="city" value="New York" />
+				 New York
+			</label>
+			<input type="submit" value="Submit" />
+		</form>
+		<br />
+		<svg width="2200" height="500" id="mySVG"></svg>
+		<!-- <div id="map" style="height: 400px; width: 400px;"></div> -->
+	</div>
+
+	<style>
+		.main {
+			padding: 4rem min(var(--main-padding, 8rem), 8vw);
+		}
+		#map {
+			height: 180px;
+		}
+	</style>
+</Layout>

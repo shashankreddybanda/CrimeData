@@ -1,0 +1,98 @@
+<script>
+    import * as d3 from "d3";
+
+    import { Connection, query } from "stardog";
+
+    const conn = new Connection({
+        username: "stardogUser",
+        password: "stardogPassword",
+        endpoint: "https://sd-ece86e0d.stardog.cloud:5820",
+    });
+
+    const dbName = "CrimeDatabase";
+
+    // var data = "";
+
+    query
+        .execute(
+            conn,
+            dbName,
+            'PREFIX crime: <http://www.semanticweb.org/nithi/ontologies/2023/10/ser531_CrimeDataInsights/> SELECT ?Area (COUNT(?Crime) AS ?NumberOfCrimes) FROM <crimedata:ontology:graph> WHERE { ?Crime crime:has_Location ?Location . ?Location crime:has_Area_Value ?Area . ?Crime crime:has_Timestamp ?Timestamp . ?Timestamp crime:has_Date ?Date . ?Date crime:has_Month 4 . ?Location crime:has_City ?City . ?City crime:has_City_Name "Los Angeles" . } GROUP BY ?Area ORDER BY DESC(?Area)',
+            "application/sparql-results+json",
+            {
+                reasoning: true,
+                offset: 0,
+            },
+        )
+        .then(({ body }) => {
+            console.log(body.results.bindings);
+            var data = body.results.bindings;
+            const width = 1200;
+            const height = 300;
+            const marginLeft = 20;
+
+            // Select the existing SVG element by its ID
+            const svg = d3.select("#mySVG");
+
+            const xScale = d3
+                .scaleBand()
+                .domain(data.map((d) => d.Area.value))
+                .range([marginLeft, width])
+                .padding(0.1);
+
+            const yScale = d3
+                .scaleLinear()
+                .domain([
+                    0,
+                    d3.max(data, (d) => parseInt(d.NumberOfCrimes.value)),
+                ])
+                .range([height, 0]);
+
+            svg.selectAll("rect")
+                .data(data)
+                .enter()
+                .append("rect")
+                .attr("x", (d) => xScale(d.Area.value))
+                .attr("y", (d) => yScale(parseInt(d.NumberOfCrimes.value)))
+                .attr("width", xScale.bandwidth())
+                .attr(
+                    "height",
+                    (d) => height - yScale(parseInt(d.NumberOfCrimes.value)),
+                )
+                .attr("fill", "#f40076");
+
+            // Add x-axis
+            svg.append("g")
+                .attr("transform", `translate(0, ${height})`)
+                .call(d3.axisBottom(xScale))
+                .selectAll("text") // Select all the text elements of the x-axis
+                .attr("transform", "rotate(-45)") // Rotate the text elements by -45 degrees
+                .style("text-anchor", "end");
+
+            // Add y-axis
+            svg.append("g")
+                .attr("transform", `translate(${marginLeft},0)`)
+                .call(
+                    d3
+                        .axisLeft(yScale)
+                        .tickValues(
+                            d3.range(
+                                0,
+                                d3.max(data, (d) =>
+                                    parseInt(d.NumberOfCrimes.value),
+                                ) + 1,
+                                1,
+                            ),
+                        ),
+                );
+        })
+        .catch((error) => {
+            console.error("Error executing SPARQL query:", error);
+        });
+</script>
+<!-- <head>
+	<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+</head> -->
+<div class="main">
+    <svg width="2200" height="500" id="mySVG"></svg>
+</div>
