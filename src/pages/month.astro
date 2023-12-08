@@ -19,6 +19,8 @@ import Area from "../components/Area.astro";
 	document
 		.getElementById("city")
 		.addEventListener("submit", function (event) {
+			const svg = d3.select("#mySVG");
+			svg.selectAll("*").remove();
 			event.preventDefault(); 
 
 			const selectedOption = document.querySelector(

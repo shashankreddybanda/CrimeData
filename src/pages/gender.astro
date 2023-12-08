@@ -19,6 +19,8 @@ import Area from "../components/Area.astro";
 	document
 		.getElementById("city")
 		.addEventListener("submit", function (event) {
+            const svg = d3.select("#mySVG");
+			svg.selectAll("*").remove();
 			event.preventDefault(); 
 
 			const selectedOption = document.querySelector(
@@ -38,7 +40,7 @@ import Area from "../components/Area.astro";
 			.execute(
 				conn,
 				dbName,
-                'PREFIX crime: <http://www.semanticweb.org/nithi/ontologies/2023/10/ser531_CrimeDataInsights/> SELECT ?gender (COUNT(?gender) AS ?NumberOfCrimes) FROM <crimedata:ontology:graph> WHERE { ?crime crime:has_Location ?location . ?crime crime:has_Victim ?victim . ?victim crime:has_Gender ?g . ?g crime:has_Gender_Value ?gender . ?location crime:has_City ?City . ?City crime:has_City_Name "Los Angeles" . } GROUP BY ?gender ORDER BY DESC(?gender)',
+                'PREFIX crime: <http://www.semanticweb.org/nithi/ontologies/2023/10/ser531_CrimeDataInsights/> SELECT ?gender (COUNT(?gender) AS ?NumberOfCrimes) FROM <crimedata:ontology:graph> WHERE { ?crime crime:has_Location ?location . ?crime crime:has_Victim ?victim . ?victim crime:has_Gender ?g . ?g crime:has_Gender_Value ?gender . ?location crime:has_City ?City . ?City crime:has_City_Name "' + city + '" . } GROUP BY ?gender ORDER BY DESC(?gender)',
                 //'PREFIX crime: <http://www.semanticweb.org/nithi/ontologies/2023/10/ser531_CrimeDataInsights/> SELECT ?gender (COUNT(?gender) AS ?NumberOfCrimes) FROM <crimedata:ontology:graph> WHERE { ?crime crime:has_Location ?location . ?crime crime:has_Victim ?victim . victim crime:has_Gender ?g . ?g crime:has_Gender_Value ?gender . ?location crime:has_City ?City . ?City crime:has_City_Name "Los Angeles" .} GROUP BY ?gender ORDER BY DESC(?gender)',
 				"application/sparql-results+json",
 				{
@@ -136,10 +138,6 @@ import Area from "../components/Area.astro";
 	<div class="main">
 		<form id="city">
 			City:
-			<label>
-				<input type="radio" name="city" value="Boston" />
-				 Boston
-			</label>
 
 			<label>
 				<input type="radio" name="city" value="Los Angeles" />
